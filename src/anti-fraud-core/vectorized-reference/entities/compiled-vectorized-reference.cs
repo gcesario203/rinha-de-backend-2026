@@ -1,6 +1,8 @@
 namespace AntiFraud.Core.VectorizedReference.Entities;
 
-public sealed class CompiledVectorizedDataset
+using AntiFraud.Core.BallTree.Entities;
+
+public sealed class CompiledVectorizedDataset : IBallTreeDataSource
 {
     private const int Dimensions = 14;
 
@@ -32,4 +34,7 @@ public sealed class CompiledVectorizedDataset
 
     public ReadOnlySpan<float> GetVectorSpan(int index)
         => Vectors.AsSpan(index * Dimensions, Dimensions);
+
+    public bool GetLabel(int index)
+        => Labels[index];
 }
