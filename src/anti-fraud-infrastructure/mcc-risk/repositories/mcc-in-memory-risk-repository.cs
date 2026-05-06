@@ -1,4 +1,6 @@
-namespace AntiFraud.Core.MCC.Repository;
+using AntiFraud.Core.MCC.Repository;
+
+namespace AntiFraud.Infrastructure.MCC.Repository;
 
 public class MCCInMemoryRiskRepository : IMCCRepository
 {

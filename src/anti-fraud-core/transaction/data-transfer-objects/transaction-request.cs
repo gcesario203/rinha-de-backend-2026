@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace AntiFraud.Core.Transaction.DTO;
+namespace AntiFraud.Core.Transaction.DataTransferObjects;
 
 public record TransactionRequest(
     [property: JsonPropertyName("id")] string Id,

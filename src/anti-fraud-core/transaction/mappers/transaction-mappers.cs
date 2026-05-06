@@ -1,6 +1,6 @@
-using AntiFraud.Core.Transaction.VO;
+using AntiFraud.Core.Transaction.ValueObjects;
 using AntiFraud.Core.Transaction.Entities;
-using AntiFraud.Core.Transaction.DTO;
+using AntiFraud.Core.Transaction.DataTransferObjects;
 
 namespace AntiFraud.Core.Transaction.Mappers;
 

@@ -1,7 +1,8 @@
-namespace AntiFraud.Core.NeighborhoodClassifier.Services;
+namespace AntiFraud.Application.NeighborhoodClassifier.Services;
 
 using AntiFraud.Core.BallTree.Entities;
 using AntiFraud.Core.NeighborhoodClassifier.ValueObjects;
+using AntiFraud.Core.NeighborhoodClassifier.Services;
 
 public sealed class BruteForceNeighborhoodClassifier : INeighborhoodClassifier
 {

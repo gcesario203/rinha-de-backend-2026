@@ -1,7 +1,7 @@
 // TransactionEntity.cs
 using AntiFraud.Core.Shared.Utils;
 using AntiFraud.Core.Shared.ValueObjects;
-using AntiFraud.Core.Transaction.VO;
+using AntiFraud.Core.Transaction.ValueObjects;
 
 namespace AntiFraud.Core.Transaction.Entities;
 

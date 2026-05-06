@@ -1,4 +1,4 @@
-namespace AntiFraud.Core.Transaction.VO;
+namespace AntiFraud.Core.Transaction.ValueObjects;
 
 public record TransactionId
 {
