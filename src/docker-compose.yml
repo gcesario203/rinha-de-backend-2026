@@ -12,8 +12,10 @@ services:
 
   api1:
     build:
-      context: .
-      dockerfile: ./anti-fraud-api/Dockerfile
+      context: ..
+      dockerfile: src/anti-fraud-api/Dockerfile
+      args:
+        INSTALL_VSDBG: "true"
     container_name: anti-fraud-api-1
     depends_on:
       - mongodb
@@ -29,8 +31,10 @@ services:
 
   api2:
     build:
-      context: .
-      dockerfile: ./anti-fraud-api/Dockerfile
+      context: ..
+      dockerfile: src/anti-fraud-api/Dockerfile
+      args:
+        INSTALL_VSDBG: "true"
     container_name: anti-fraud-api-2
     depends_on:
       - mongodb

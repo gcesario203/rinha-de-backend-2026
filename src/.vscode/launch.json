@@ -1,14 +1,22 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "C#: Debug Active File",
-            "type": "dotnet",
-            "request": "launch",
-            "projectPath": "${file}"
-        }
-    ]
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": ".NET: Launch API Local",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/anti-fraud-api/bin/Debug/net10.0/anti-fraud-api.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/anti-fraud-api",
+      "stopAtEntry": false,
+      "console": "internalConsole",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:5000",
+        "MongoDB__ConnectionString": "mongodb://localhost:27017",
+        "MongoDB__DatabaseName": "anti-fraud"
+      }
+    }
+  ]
 }

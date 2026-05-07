@@ -22,17 +22,21 @@
     <PackageReference Include="MongoDB.Driver" Version="3.8.0" />
   </ItemGroup>
   
-    <ItemGroup>
-  <Content Include="shared\resources\mcc_risk.json">
-    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-  </Content>
-  <Content Include="shared\resources\normalization.json">
-    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-  </Content>
-  <Content Include="shared\resources\references.json.gz">
-    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-  </Content>
-</ItemGroup>
+  <ItemGroup>
+    <!-- Use os arquivos oficiais do repo root (/resources) e copie para shared/resources no output -->
+    <Content Include="..\..\resources\mcc_risk.json">
+      <Link>shared\resources\mcc_risk.json</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\resources\normalization.json">
+      <Link>shared\resources\normalization.json</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\resources\references.json.gz">
+      <Link>shared\resources\references.json.gz</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 
 
 </Project>

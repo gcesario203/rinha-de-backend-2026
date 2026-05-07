@@ -18,7 +18,6 @@ public class FraudInferenceEngine : IFraudEngine
 
         if (candidates.Count == 0)
         {
-            // Sem vizinhos: fraud_score 0 → aprovado (mesma regra score < threshold)
             return Task.FromResult(new FraudAnalysisResult(true, 0f));
         }
 
@@ -26,7 +25,6 @@ public class FraudInferenceEngine : IFraudEngine
 
         float score = (float)fraudCount / candidates.Count;
 
-        // approved = fraud_score < threshold (especificação Rinha 2026)
         return Task.FromResult(new FraudAnalysisResult(score < threshold, score));
     }
 }

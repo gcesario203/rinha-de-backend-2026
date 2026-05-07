@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using AntiFraud.Application.Extensions;
 using AntiFraud.Infrastructure.Extensions;
@@ -6,7 +7,9 @@ using AntiFraud.API.HostedServices;
 using AntiFraud.Application.Shared.ValueObjects;
 using AntiFraud.Core.NeighborhoodClassifier;
 using AntiFraud.Application.FraudScore.Services;
-using AntiFraud.Core.NeighborhoodClassifier.ValueObjects; // IFraudScoreRestService
+using AntiFraud.Core.NeighborhoodClassifier.ValueObjects;
+using AntiFraud.Core.NeighborhoodClassifier.Services;
+using AntiFraud.Core.VectorizedReference.Entities;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,8 +34,13 @@ builder.Services.AddScoped<IFraudScoreRestService, FraudScoreRestService>();
 // Estado de prontidão
 builder.Services.AddSingleton<DatasetReadinessState>();
 
-// Hosted service que fará o carregamento do dataset
-builder.Services.AddHostedService<DatasetLoaderHostedService>();
+// Hosted service: INeighborhoodClassifier só existe como serviço keyed (mesma instância do FraudEngine)
+builder.Services.AddHostedService(sp => new DatasetLoaderHostedService(
+    sp.GetRequiredService<DatasetReadinessState>(),
+    sp.GetRequiredService<CompiledVectorizedDataset>(),
+    sp.GetRequiredKeyedService<INeighborhoodClassifier>(strategy),
+    sp.GetRequiredService<IServiceScopeFactory>(),
+    sp.GetRequiredService<ILogger<DatasetLoaderHostedService>>()));
 
 // Logging mínimo
 builder.Logging.ClearProviders();
