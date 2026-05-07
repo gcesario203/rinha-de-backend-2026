@@ -6,7 +6,7 @@ namespace AntiFraud.Core.Transaction.Mappers;
 
 public static class TransactionMapper
 {
-    public static TransactionEntity ToDomain(TransactionRequest dto) =>
+    public static TransactionEntity MapToEntity(TransactionRequest dto) =>
         TransactionEntity.Create(
             id: new TransactionId(dto.Id),
             payment: new Money(dto.Transaction.Amount, dto.Transaction.Installments),

@@ -14,6 +14,11 @@ public sealed class BruteForceNeighborhoodClassifier : INeighborhoodClassifier
         _dataSource = dataSource;
     }
 
+    public void Initialize()
+    {
+        return;
+    }
+
     public IEnumerable<KnnCandidate> ClassifyByNeighborhood(float[] queryVector, int k)
     {
         return Enumerable
