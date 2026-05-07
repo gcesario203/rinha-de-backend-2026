@@ -13,7 +13,7 @@ public sealed class DatasetLoaderHostedService : IHostedService
     private readonly DatasetReadinessState _readinessState;
     private readonly CompiledVectorizedDataset _dataset;
     private readonly INeighborhoodClassifier _classifier;
-    private readonly IVectorizedReferenceContract _repository;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<DatasetLoaderHostedService> _logger;
 
     private static readonly string DatasetPath = Path.Combine(
@@ -28,13 +28,13 @@ public sealed class DatasetLoaderHostedService : IHostedService
         DatasetReadinessState readinessState,
         CompiledVectorizedDataset dataset,
         INeighborhoodClassifier classifier,
-        IVectorizedReferenceContract repository,
+        IServiceScopeFactory scopeFactory,
         ILogger<DatasetLoaderHostedService> logger)
     {
         _readinessState = readinessState;
         _dataset = dataset;
         _classifier = classifier;
-        _repository = repository;
+        _scopeFactory = scopeFactory;
         _logger = logger;
     }
 
@@ -42,21 +42,35 @@ public sealed class DatasetLoaderHostedService : IHostedService
     {
         try
         {
-            // FASE 1: Boot blocking
-            var count = await _repository.GetCountAsync(cancellationToken);
+            await using var scope = _scopeFactory.CreateAsyncScope();
+            var repository = scope.ServiceProvider.GetRequiredService<IVectorizedReferenceContract>();
 
-            if (count > 0)
+            var expectedCount = _dataset.Count;
+            var count = await repository.GetCountAsync(cancellationToken);
+
+            if (count == expectedCount)
             {
                 _logger.LogInformation("[DatasetLoader] MongoDB has {Count} records. Loading from MongoDB...", count);
-                await LoadFromMongoAsync(cancellationToken);
+                await LoadFromMongoAsync(repository, cancellationToken);
             }
             else
             {
-                _logger.LogInformation("[DatasetLoader] MongoDB is empty. Loading from references.json.gz...");
+                if (count > 0)
+                {
+                    _logger.LogWarning(
+                        "[DatasetLoader] MongoDB has {Count} records (expected {Expected}). Loading from references.json.gz.",
+                        count,
+                        expectedCount);
+                }
+                else
+                {
+                    _logger.LogInformation("[DatasetLoader] MongoDB is empty. Loading from references.json.gz...");
+                }
+
                 await LoadFromFileAsync(cancellationToken);
 
-                // FASE 2: Sync fire-and-forget
-                _ = PersistToMongoAsync();
+                if (count == 0)
+                    _ = PersistToMongoAsync();
             }
 
             _logger.LogInformation("[DatasetLoader] Building Ball Tree...");
@@ -76,11 +90,13 @@ public sealed class DatasetLoaderHostedService : IHostedService
     // -------------------------------------------------------------------------
     // FASE 1a: Carrega do MongoDB
     // -------------------------------------------------------------------------
-    private async Task LoadFromMongoAsync(CancellationToken cancellationToken)
+    private async Task LoadFromMongoAsync(
+        IVectorizedReferenceContract repository,
+        CancellationToken cancellationToken)
     {
         var index = 0;
 
-        await foreach (var entry in _repository.GetDataSet(cancellationToken))
+        await foreach (var entry in repository.GetDataSet(cancellationToken))
         {
             _dataset.SetEntry(index++, entry.Vector, entry.IsFraud);
 
@@ -129,6 +145,9 @@ public sealed class DatasetLoaderHostedService : IHostedService
     {
         try
         {
+            await using var scope = _scopeFactory.CreateAsyncScope();
+            var repository = scope.ServiceProvider.GetRequiredService<IVectorizedReferenceContract>();
+
             _logger.LogInformation("[DatasetLoader] Starting background MongoDB persistence...");
 
             var batch = new List<VectorizedReferenceEntity>(10_000);
@@ -142,7 +161,7 @@ public sealed class DatasetLoaderHostedService : IHostedService
 
                 if (batch.Count == 10_000)
                 {
-                    await _repository.SaveBatchAsync(batch);
+                    await repository.SaveBatchAsync(batch);
                     total += batch.Count;
                     batch.Clear();
 
@@ -152,7 +171,7 @@ public sealed class DatasetLoaderHostedService : IHostedService
 
             if (batch.Count > 0)
             {
-                await _repository.SaveBatchAsync(batch);
+                await repository.SaveBatchAsync(batch);
                 total += batch.Count;
             }
 

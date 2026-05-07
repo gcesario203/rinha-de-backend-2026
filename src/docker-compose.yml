@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:6.0
+    container_name: antifraud-db
+    ports:
+      - "27017:27017"
+    networks:
+      - antifraud_network
+    restart: always
+
+  api1:
+    build:
+      context: .
+      dockerfile: ./anti-fraud-api/Dockerfile
+    container_name: anti-fraud-api-1
+    depends_on:
+      - mongodb
+    networks:
+      - antifraud_network
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - MongoDB__ConnectionString=mongodb://mongodb:27017
+      - MongoDB__DatabaseName=anti-fraud
+      - MongoDB__CollectionName=vectorized_references
+      - AntiFraud__ClassifierStrategy=BallTree
+    restart: always
+
+  api2:
+    build:
+      context: .
+      dockerfile: ./anti-fraud-api/Dockerfile
+    container_name: anti-fraud-api-2
+    depends_on:
+      - mongodb
+    networks:
+      - antifraud_network
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - MongoDB__ConnectionString=mongodb://mongodb:27017
+      - MongoDB__DatabaseName=anti-fraud
+      - MongoDB__CollectionName=vectorized_references
+      - AntiFraud__ClassifierStrategy=BallTree
+    restart: always
+
+  haproxy:
+    image: haproxy:2.8
+    container_name: antifraud-haproxy
+    ports:
+      - "9999:9999"
+    volumes:
+      - ./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    depends_on:
+      - api1
+      - api2
+    networks:
+      - antifraud_network
+    restart: always
+
+networks:
+  antifraud_network:
+    driver: bridge
