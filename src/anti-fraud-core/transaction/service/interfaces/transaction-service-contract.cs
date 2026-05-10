@@ -6,5 +6,5 @@ namespace AntiFraud.Core.FraudEngine.Services;
 
 public interface ITransactionService
 {
-    Task<FraudAnalysisResult> Analyze(TransactionEntity transaction);
+    FraudAnalysisResult Analyze(TransactionEntity transaction);
 }

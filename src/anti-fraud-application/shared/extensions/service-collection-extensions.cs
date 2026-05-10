@@ -54,7 +54,7 @@ public static class ApplicationServiceCollectionExtensions
 
     private static IServiceCollection AddAntiFraudTransactionService(this IServiceCollection services)
     {
-        services.AddScoped<ITransactionService, TransactionService>();
+        services.AddSingleton<ITransactionService, TransactionService>();
         return services;
     }
 }

@@ -11,6 +11,12 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>anti_fraud_api</RootNamespace>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <TieredPGO>true</TieredPGO>
+    <TieredCompilation>true</TieredCompilation>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <PublishReadyToRun>true</PublishReadyToRun>
   </PropertyGroup>
 
 </Project>

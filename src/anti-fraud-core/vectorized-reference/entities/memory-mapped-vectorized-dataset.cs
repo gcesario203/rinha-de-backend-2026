@@ -52,6 +52,27 @@ public sealed unsafe class MemoryMappedVectorizedDataset : IBallTreeDataSource, 
         _labelsByteOffset = _vectorsByteOffset + (long)_count * VectorDatasetConstants.Dimensions * sizeof(float);
     }
 
+    /// <summary>
+    /// Toca uma vez todas as páginas do mmap em ordem sequencial.
+    /// Custa O(arquivo) na inicialização e elimina major page-faults durante o hot path.
+    /// </summary>
+    public long PreFault()
+    {
+        if (_ptr is null) return 0;
+
+        var totalBytes = _labelsByteOffset + (long)_count;
+        // 4 KiB é o tamanho de página no Linux para arquiteturas amd64/arm64 padrão.
+        const int PageSize = 4096;
+
+        // Soma um byte por página para evitar que o JIT/otimizador descarte a leitura.
+        long checksum = 0;
+        for (long offset = 0; offset < totalBytes; offset += PageSize)
+        {
+            checksum += *(_ptr + offset);
+        }
+        return checksum;
+    }
+
     public ReadOnlySpan<float> GetVectorSpan(int index)
     {
         var offset = _vectorsByteOffset + (long)index * VectorDatasetConstants.Dimensions * sizeof(float);

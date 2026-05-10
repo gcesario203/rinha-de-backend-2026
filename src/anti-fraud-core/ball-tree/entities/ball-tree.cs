@@ -1,7 +1,7 @@
 namespace AntiFraud.Core.BallTree.Entities;
 
-using AntiFraud.Core.NeighborhoodClassifier.ValueObjects;
 using AntiFraud.Core.NeighborhoodClassifier.Entities;
+using AntiFraud.Core.Shared.Utils;
 
 public sealed class BallTreeEntity
 {
@@ -121,65 +121,89 @@ public sealed class BallTreeEntity
 
     #region Search
 
-    public IEnumerable<KnnCandidate> Search(float[] query, int k)
-    {
-        var queue = new KnnPriorityQueueEntity(k);
-        SearchNode(_root, query, queue);
+    [ThreadStatic] private static KnnPriorityQueueEntity? _queueCache;
 
-        return queue.GetResults()
-            .Select(r => new KnnCandidate(
-                r.Index,
-                _dataSource.GetLabel(r.Index),
-                r.Distance
-            ));
+    /// <summary>Conta quantos dos k vizinhos mais próximos são fraude (dist² na folha; mesmo resultado que Search enumerável).</summary>
+    public int CountFraudAmongKNearest(ReadOnlySpan<float> query, int k, out int neighborCount)
+    {
+        var queue = _queueCache;
+        if (queue is null || queue.Capacity != k)
+        {
+            queue = new KnnPriorityQueueEntity(k);
+            _queueCache = queue;
+        }
+        else
+        {
+            queue.Reset();
+        }
+
+        var rootDistSq = DistanceSquared(query, _root.Centroid.AsSpan());
+        SearchNode(_root, query, queue, rootDistSq);
+        neighborCount = queue.Count;
+        var fraud = 0;
+        for (var i = 0; i < queue.Count; i++)
+        {
+            if (_dataSource.GetLabel(queue.GetIndex(i)))
+                fraud++;
+        }
+        return fraud;
     }
 
-    private void SearchNode(BallTreeNodeEntity node, float[] query, KnnPriorityQueueEntity queue)
+    /// <summary>
+    /// Poda em distância ao quadrado pura: o pai já fez <c>DistanceSquared(query, node.Centroid)</c>
+    /// e passa <paramref name="distSqToCenter"/> aqui, evitando sqrt no caminho de poda.
+    /// Quando a fila está cheia, o nó pode ser descartado se
+    /// <c>distSqToCenter &gt; (radius + sqrt(worstSq))²</c>.
+    /// </summary>
+    private void SearchNode(BallTreeNodeEntity node, ReadOnlySpan<float> query, KnnPriorityQueueEntity queue, float distSqToCenter)
     {
-        var distToCenter = Distance(query, node.Centroid);
-        var minDist = distToCenter - node.Radius;
-
-        if (minDist > queue.WorstDistance)
-            return;
+        if (queue.IsFull)
+        {
+            var bound = node.Radius + queue.WorstDist; // worstDist é sqrt(worstSq) cacheado
+            if (distSqToCenter > bound * bound)
+                return;
+        }
 
         if (node.IsLeaf)
         {
-            foreach (var idx in node.PointIndices!)
+            var indices = node.PointIndices!;
+            var n = indices.Length;
+
+            if (n > 0)
+                VectorMath14.Prefetch(_dataSource.GetVectorSpan(indices[0]));
+
+            for (var i = 0; i < n; i++)
             {
-                var dist = Distance(_dataSource.GetVectorSpan(idx), query);
-                queue.TryInsert(idx, dist);
+                if (i + 1 < n)
+                    VectorMath14.Prefetch(_dataSource.GetVectorSpan(indices[i + 1]));
+
+                var idx = indices[i];
+                var distSq = DistanceSquared(_dataSource.GetVectorSpan(idx), query);
+                queue.TryInsert(idx, distSq);
             }
             return;
         }
 
-        var dl = Distance(query, node.Left!.Centroid);
-        var dr = Distance(query, node.Right!.Centroid);
+        var dl = DistanceSquared(query, node.Left!.Centroid.AsSpan());
+        var dr = DistanceSquared(query, node.Right!.Centroid.AsSpan());
 
         if (dl <= dr)
         {
-            SearchNode(node.Left, query, queue);
-            SearchNode(node.Right, query, queue);
+            SearchNode(node.Left!, query, queue, dl);
+            SearchNode(node.Right!, query, queue, dr);
         }
         else
         {
-            SearchNode(node.Right, query, queue);
-            SearchNode(node.Left, query, queue);
+            SearchNode(node.Right!, query, queue, dr);
+            SearchNode(node.Left!, query, queue, dl);
         }
     }
 
     #endregion
 
-    private static float Distance(ReadOnlySpan<float> a, ReadOnlySpan<float> b)
-    {
-        float sum = 0f;
-        for (int i = 0; i < Dimensions; i++)
-        {
-            float d = a[i] - b[i];
-            sum += d * d;
-        }
-        return MathF.Sqrt(sum);
-    }
+    private static float DistanceSquared(ReadOnlySpan<float> a, ReadOnlySpan<float> b)
+        => VectorMath14.DistanceSquared(a, b);
 
-    private static float Distance(float[] a, float[] b)
-        => Distance(a.AsSpan(), b.AsSpan());
+    private static float Distance(ReadOnlySpan<float> a, ReadOnlySpan<float> b)
+        => VectorMath14.Distance(a, b);
 }

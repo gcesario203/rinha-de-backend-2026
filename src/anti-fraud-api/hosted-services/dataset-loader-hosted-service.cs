@@ -48,6 +48,10 @@ public sealed class DatasetLoaderHostedService : IHostedService
 
             _dataset.Open(_binaryDatasetPath);
 
+            _logger.LogInformation("[DatasetLoader] Pre-faulting mmap pages...");
+            var checksum = _dataset.PreFault();
+            _logger.LogInformation("[DatasetLoader] Pre-fault done (checksum={Checksum}).", checksum);
+
             _logger.LogInformation("[DatasetLoader] Building Ball Tree...");
             _classifier.Initialize();
 

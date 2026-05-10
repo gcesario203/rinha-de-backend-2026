@@ -1,13 +1,13 @@
 namespace AntiFraud.Application.NeighborhoodClassifier.Services;
 
 using AntiFraud.Core.BallTree.Entities;
-using AntiFraud.Core.NeighborhoodClassifier.ValueObjects;
+using AntiFraud.Core.NeighborhoodClassifier.Entities;
 using AntiFraud.Core.NeighborhoodClassifier.Services;
+using AntiFraud.Core.Shared.Utils;
 
 public sealed class BruteForceNeighborhoodClassifier : INeighborhoodClassifier
 {
     private readonly IBallTreeDataSource _dataSource;
-    private const int Dimensions = 14;
 
     public BruteForceNeighborhoodClassifier(IBallTreeDataSource dataSource)
     {
@@ -19,27 +19,42 @@ public sealed class BruteForceNeighborhoodClassifier : INeighborhoodClassifier
         return;
     }
 
-    public IEnumerable<KnnCandidate> ClassifyByNeighborhood(float[] queryVector, int k)
-    {
-        return Enumerable
-            .Range(0, _dataSource.Count)
-            .Select(i => new KnnCandidate(
-                i,
-                _dataSource.GetLabel(i),
-                Distance(queryVector, _dataSource.GetVectorSpan(i))
-            ))
-            .OrderBy(x => x.Distance)
-            .Take(k);
-    }
+    [ThreadStatic] private static KnnPriorityQueueEntity? _queueCache;
 
-    private static float Distance(float[] a, ReadOnlySpan<float> b)
+    public (int FraudCount, int Total) GetNeighborVote(ReadOnlySpan<float> queryVector, int k)
     {
-        float sum = 0f;
-        for (int i = 0; i < Dimensions; i++)
+        var queue = _queueCache;
+        if (queue is null || queue.Capacity != k)
         {
-            float d = a[i] - b[i];
-            sum += d * d;
+            queue = new KnnPriorityQueueEntity(k);
+            _queueCache = queue;
         }
-        return MathF.Sqrt(sum);
+        else
+        {
+            queue.Reset();
+        }
+
+        var n = _dataSource.Count;
+
+        if (n > 0)
+            VectorMath14.Prefetch(_dataSource.GetVectorSpan(0));
+
+        for (var i = 0; i < n; i++)
+        {
+            if (i + 1 < n)
+                VectorMath14.Prefetch(_dataSource.GetVectorSpan(i + 1));
+
+            var distSq = VectorMath14.DistanceSquared(queryVector, _dataSource.GetVectorSpan(i));
+            queue.TryInsert(i, distSq);
+        }
+
+        var fraud = 0;
+        for (var i = 0; i < queue.Count; i++)
+        {
+            if (_dataSource.GetLabel(queue.GetIndex(i)))
+                fraud++;
+        }
+
+        return (fraud, queue.Count);
     }
 }
