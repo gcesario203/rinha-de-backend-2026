@@ -19,19 +19,11 @@ RUN dotnet publish "anti-fraud-api.csproj" -c Release -o /app/publish /p:UseAppH
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
-# Permite ativar ou desativar o vsdbg com --build-arg INSTALL_VSDBG=true
-ARG INSTALL_VSDBG=false
-
 # Instala 'curl' para permitir healthchecks simples via CMD curl
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # Copia a publicação do estágio de build
 COPY --from=build /app/publish .
-
-# Instala o vsdbg apenas se INSTALL_VSDBG=true
-RUN if [ "$INSTALL_VSDBG" = "true" ]; then \
-      curl -sSL https://aka.ms/getvsdbgsh | bash /dev/stdin -v latest -l /vsdbg; \
-    fi
 
 ENV ASPNETCORE_URLS=http://+:80
 ENV ASPNETCORE_ENVIRONMENT=Production
