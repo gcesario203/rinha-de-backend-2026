@@ -1,51 +1,37 @@
 version: '3.8'
 
-services:
-  mongodb:
-    image: mongo:6.0
-    container_name: antifraud-db
-    ports:
-      - "27017:27017"
-    networks:
-      - antifraud_network
-    restart: always
+volumes:
+  vector_dataset_bin:
 
+services:
   api1:
     build:
       context: ..
       dockerfile: src/anti-fraud-api/Dockerfile
-      args:
-        INSTALL_VSDBG: "true"
     container_name: anti-fraud-api-1
-    depends_on:
-      - mongodb
     networks:
       - antifraud_network
+    volumes:
+      - vector_dataset_bin:/var/lib/antifraud
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-      - MongoDB__ConnectionString=mongodb://mongodb:27017
-      - MongoDB__DatabaseName=anti-fraud
-      - MongoDB__CollectionName=vectorized_references
       - AntiFraud__ClassifierStrategy=BallTree
+      - Data__BinaryDatasetPath=/var/lib/antifraud/references.bin
     restart: always
 
   api2:
     build:
       context: ..
       dockerfile: src/anti-fraud-api/Dockerfile
-      args:
-        INSTALL_VSDBG: "true"
     container_name: anti-fraud-api-2
-    depends_on:
-      - mongodb
     networks:
       - antifraud_network
+    volumes:
+      - vector_dataset_bin:/var/lib/antifraud
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-      - MongoDB__ConnectionString=mongodb://mongodb:27017
-      - MongoDB__DatabaseName=anti-fraud
-      - MongoDB__CollectionName=vectorized_references
       - AntiFraud__ClassifierStrategy=BallTree
+      - Data__BinaryDatasetPath=/var/lib/antifraud/references.bin
     restart: always
 
   haproxy:

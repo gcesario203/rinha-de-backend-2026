@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
 using AntiFraud.Application.Extensions;
 using AntiFraud.Infrastructure.Extensions;
 using AntiFraud.API.Endpoints;
@@ -25,7 +26,7 @@ if (!Enum.TryParse<NeighborhoodClassifierStrategy>(strategyString, ignoreCase: t
 // --------------------------------------------------
 // Services - Infrastructure + Application
 // --------------------------------------------------
-builder.Services.AddAntiFraudInfrastructure(builder.Configuration);
+builder.Services.AddAntiFraudInfrastructure();
 builder.Services.AddAntiFraudApplication(strategy);
 
 // Registrar adapter REST que adapta Application -> REST
@@ -37,9 +38,9 @@ builder.Services.AddSingleton<DatasetReadinessState>();
 // Hosted service: INeighborhoodClassifier só existe como serviço keyed (mesma instância do FraudEngine)
 builder.Services.AddHostedService(sp => new DatasetLoaderHostedService(
     sp.GetRequiredService<DatasetReadinessState>(),
-    sp.GetRequiredService<CompiledVectorizedDataset>(),
+    sp.GetRequiredService<MemoryMappedVectorizedDataset>(),
     sp.GetRequiredKeyedService<INeighborhoodClassifier>(strategy),
-    sp.GetRequiredService<IServiceScopeFactory>(),
+    sp.GetRequiredService<IConfiguration>(),
     sp.GetRequiredService<ILogger<DatasetLoaderHostedService>>()));
 
 // Logging mínimo

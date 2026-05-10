@@ -13,9 +13,7 @@
       "console": "internalConsole",
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "ASPNETCORE_URLS": "http://localhost:5000",
-        "MongoDB__ConnectionString": "mongodb://localhost:27017",
-        "MongoDB__DatabaseName": "anti-fraud"
+        "ASPNETCORE_URLS": "http://localhost:5000"
       }
     }
   ]
