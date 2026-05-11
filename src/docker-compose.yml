@@ -5,7 +5,7 @@
 # acomodarem o mmap de ~168M de vetores + working set do GC sem thrash.
 #
 # Os ficheiros pesados (references.bin + references.balltree.bin + references.kdtree.bin) são gerados
-# DURANTE o `docker build` (ver src/Dockerfile, stage `build`) e ficam imutáveis
+# DURANTE o `docker build` (Dockerfile na raiz do repo, stage `build`) e ficam imutáveis
 # dentro da imagem em /var/lib/antifraud. Por isso não há mais `volumes:` partilhado.
 
 version: '3.8'
@@ -14,7 +14,7 @@ services:
   api1:
     build:
       context: ..
-      dockerfile: src/Dockerfile
+      dockerfile: ../Dockerfile
     container_name: anti-fraud-api-1
     networks:
       - antifraud_network
@@ -34,7 +34,7 @@ services:
   api2:
     build:
       context: ..
-      dockerfile: src/Dockerfile
+      dockerfile: ../Dockerfile
     container_name: anti-fraud-api-2
     networks:
       - antifraud_network
