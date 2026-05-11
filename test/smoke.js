@@ -32,9 +32,8 @@ const payload = {
 export const options = {
     vus: 1,
     iterations: 5,
-    // Teto absoluto por iteração — se o backend começar a responder lento,
-    // o k6 aborta em vez de pendurar o job até o timeout do GitHub Actions.
-    maxDuration: '60s',
+    // Teto de tempo total do smoke (encerra se algo travar antes das 5 iterações).
+    duration: '60s',
     thresholds: {
         checks: ['rate==1.0'],
         http_req_failed: ['rate==0.0'],
@@ -42,8 +41,9 @@ export const options = {
 };
 
 export default function smokeTest() {
+    const baseUrl = __ENV.BASE_URL || 'http://localhost:9999';
     const res = http.post(
-        'http://localhost:9999/fraud-score',
+        `${baseUrl}/fraud-score`,
         JSON.stringify(payload),
         { headers: { 'Content-Type': 'application/json' }, timeout: '10s' },
     );
@@ -51,13 +51,13 @@ export default function smokeTest() {
     check(res, {
         'status is 200': (r) => r.status === 200,
         'body is json': (r) => {
-            try { JSON.parse(r.body); return true; } catch { return false; }
+            try { JSON.parse(r.body); return true; } catch (_) { return false; }
         },
         'approved is boolean': (r) => {
-            try { return typeof JSON.parse(r.body).approved === 'boolean'; } catch { return false; }
+            try { return typeof JSON.parse(r.body).approved === 'boolean'; } catch (_) { return false; }
         },
         'fraud_score is number': (r) => {
-            try { return typeof JSON.parse(r.body).fraud_score === 'number'; } catch { return false; }
+            try { return typeof JSON.parse(r.body).fraud_score === 'number'; } catch (_) { return false; }
         },
     });
 }
