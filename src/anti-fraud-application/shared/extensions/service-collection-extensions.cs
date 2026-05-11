@@ -32,6 +32,9 @@ public static class ApplicationServiceCollectionExtensions
         services.AddKeyedSingleton<INeighborhoodClassifier, BallTreeNeighborhoodClassifier>(
             NeighborhoodClassifierStrategy.BallTree);
 
+        services.AddKeyedSingleton<INeighborhoodClassifier, KdTreeNeighborhoodClassifier>(
+            NeighborhoodClassifierStrategy.KdTree);
+
         services.AddKeyedSingleton<INeighborhoodClassifier, BruteForceNeighborhoodClassifier>(
             NeighborhoodClassifierStrategy.BruteForce);
 

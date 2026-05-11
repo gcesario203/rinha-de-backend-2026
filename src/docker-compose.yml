@@ -4,7 +4,7 @@
 # HAProxy enxuto (8192 conn, sem stats web) cabe em 16M; o restante vai para as APIs
 # acomodarem o mmap de ~168M de vetores + working set do GC sem thrash.
 #
-# Os ficheiros pesados (references.bin + references.balltree.bin) são gerados
+# Os ficheiros pesados (references.bin + references.balltree.bin + references.kdtree.bin) são gerados
 # DURANTE o `docker build` (ver Dockerfile, stage `build`) e ficam imutáveis
 # dentro da imagem em /var/lib/antifraud. Por isso não há mais `volumes:` partilhado.
 
@@ -23,6 +23,7 @@ services:
       - AntiFraud__ClassifierStrategy=BallTree
       - Data__BinaryDatasetPath=/var/lib/antifraud/references.bin
       - Data__BallTreeCachePath=/var/lib/antifraud/references.balltree.bin
+      - Data__KdTreeCachePath=/var/lib/antifraud/references.kdtree.bin
     restart: always
     deploy:
       resources:
@@ -42,6 +43,7 @@ services:
       - AntiFraud__ClassifierStrategy=BallTree
       - Data__BinaryDatasetPath=/var/lib/antifraud/references.bin
       - Data__BallTreeCachePath=/var/lib/antifraud/references.balltree.bin
+      - Data__KdTreeCachePath=/var/lib/antifraud/references.kdtree.bin
     restart: always
     deploy:
       resources:

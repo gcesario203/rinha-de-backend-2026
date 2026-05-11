@@ -38,6 +38,8 @@ public sealed class DatasetLoaderHostedService : IHostedService
 
     private readonly string? _ballTreeCachePathOverride;
 
+    private readonly string? _kdTreeCachePathOverride;
+
 
 
     public DatasetLoaderHostedService(
@@ -76,6 +78,8 @@ public sealed class DatasetLoaderHostedService : IHostedService
 
         _ballTreeCachePathOverride = configuration["Data:BallTreeCachePath"];
 
+        _kdTreeCachePathOverride = configuration["Data:KdTreeCachePath"];
+
     }
 
 
@@ -95,6 +99,26 @@ public sealed class DatasetLoaderHostedService : IHostedService
         var dir = Path.GetDirectoryName(binFull) ?? ".";
 
         return Path.Combine(dir, Path.GetFileNameWithoutExtension(binFull) + ".balltree.bin");
+
+    }
+
+
+
+    private string ResolveKdTreeCachePath()
+
+    {
+
+        if (!string.IsNullOrEmpty(_kdTreeCachePathOverride))
+
+            return Path.GetFullPath(_kdTreeCachePathOverride);
+
+
+
+        var binFull = Path.GetFullPath(_binaryDatasetPath);
+
+        var dir = Path.GetDirectoryName(binFull) ?? ".";
+
+        return Path.Combine(dir, Path.GetFileNameWithoutExtension(binFull) + ".kdtree.bin");
 
     }
 
@@ -257,6 +281,124 @@ public sealed class DatasetLoaderHostedService : IHostedService
 
 
                             BallTreeCacheMaterializer.SaveAtomic(cachePath, ballTree.Tree!, leafSize, refsLen, _logger);
+
+                        }
+
+                    }
+
+                }
+
+            }
+
+            else if (_classifier is KdTreeNeighborhoodClassifier kdTree)
+
+            {
+
+                var kdCachePath = ResolveKdTreeCachePath();
+
+                var fastSw = Stopwatch.StartNew();
+
+                var cachedKd = KdTreeCacheMaterializer.TryLoad(kdCachePath, _binaryDatasetPath, _dataset, leafSize);
+
+                if (cachedKd is not null)
+
+                {
+
+                    kdTree.AttachTree(cachedKd);
+
+                    _logger.LogInformation(
+
+                        "[DatasetLoader] KD-tree loaded from cache in {Elapsed}ms ({Path}).",
+
+                        fastSw.ElapsedMilliseconds, kdCachePath);
+
+                }
+
+                else
+
+                {
+
+                    _logger.LogWarning(
+
+                        "[DatasetLoader] Sem cache KD-tree válido em {Path}; construção pode demorar. Próximo arranque será rápido.",
+
+                        kdCachePath);
+
+
+
+                    var lockPath = kdCachePath + ".lock";
+
+                    var lockDir = Path.GetDirectoryName(Path.GetFullPath(lockPath));
+
+                    if (!string.IsNullOrEmpty(lockDir))
+
+                        Directory.CreateDirectory(lockDir);
+
+
+
+                    await using (var lockStream = new FileStream(
+
+                                       lockPath,
+
+                                       FileMode.OpenOrCreate,
+
+                                       FileAccess.ReadWrite,
+
+                                       FileShare.None,
+
+                                       bufferSize: 4096,
+
+                                       FileOptions.Asynchronous))
+
+                    {
+
+                        fastSw.Restart();
+
+                        cachedKd = KdTreeCacheMaterializer.TryLoad(kdCachePath, _binaryDatasetPath, _dataset, leafSize);
+
+                        if (cachedKd is not null)
+
+                        {
+
+                            kdTree.AttachTree(cachedKd);
+
+                            _logger.LogInformation(
+
+                                "[DatasetLoader] KD-tree loaded from cache after lock ({Elapsed}ms).",
+
+                                fastSw.ElapsedMilliseconds);
+
+                        }
+
+                        else
+
+                        {
+
+                            var buildSw = Stopwatch.StartNew();
+
+                            _logger.LogInformation("[DatasetLoader] Building KD-tree...");
+
+
+
+                            kdTree.BuildProgressCallback = (nodes, leaves) =>
+
+                                _logger.LogInformation(
+
+                                    "[DatasetLoader] KD build progress: {Nodes} internal nodes, {Leaves} leaves ({Elapsed}ms).",
+
+                                    nodes, leaves, buildSw.ElapsedMilliseconds);
+
+
+
+                            kdTree.Initialize();
+
+
+
+                            _logger.LogInformation("[DatasetLoader] KD-tree built in {Elapsed}ms.", buildSw.ElapsedMilliseconds);
+
+
+
+                            KdTreeCacheMaterializer.SaveAtomic(kdCachePath, kdTree.Tree!, leafSize, refsLen, _logger);
 
                         }
 

@@ -27,6 +27,7 @@ RUN mkdir -p /app/data \
         /src/resources/references.json.gz \
         /app/data/references.bin \
         /app/data/references.balltree.bin \
+        /app/data/references.kdtree.bin \
  && rm -f /app/publish/shared/resources/references.json.gz \
  && ls -lh /app/data
 
@@ -45,6 +46,7 @@ COPY --from=build /app/publish .
 RUN mkdir -p /var/lib/antifraud
 COPY --from=build /app/data/references.bin           /var/lib/antifraud/references.bin
 COPY --from=build /app/data/references.balltree.bin  /var/lib/antifraud/references.balltree.bin
+COPY --from=build /app/data/references.kdtree.bin    /var/lib/antifraud/references.kdtree.bin
 
 ENV ASPNETCORE_URLS=http://+:80
 ENV ASPNETCORE_ENVIRONMENT=Production

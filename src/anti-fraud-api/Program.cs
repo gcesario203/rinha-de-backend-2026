@@ -17,14 +17,14 @@ using AntiFraud.Core.VectorizedReference.Entities;
 
 // --------------------------------------------------
 // Modo offline: usado durante `docker build` para materializar references.bin
-// e references.balltree.bin DENTRO da imagem. Evita custo de cold-start.
-//   dotnet anti-fraud-api.dll --prebuild <gzPath> <binPath> <ballTreeBinPath>
+// e references.balltree.bin (e opcionalmente references.kdtree.bin) DENTRO da imagem. Evita custo de cold-start.
+//   dotnet anti-fraud-api.dll --prebuild <gzPath> <binPath> <ballTreeBinPath> [<kdTreeBinPath>]
 // --------------------------------------------------
 if (args.Length >= 1 && args[0] == "--prebuild")
 {
     if (args.Length < 4)
     {
-        Console.Error.WriteLine("Usage: --prebuild <gzPath> <binPath> <ballTreeBinPath>");
+        Console.Error.WriteLine("Usage: --prebuild <gzPath> <binPath> <ballTreeBinPath> [<kdTreeBinPath>]");
         return 1;
     }
 
@@ -32,7 +32,8 @@ if (args.Length >= 1 && args[0] == "--prebuild")
     var prebuildLogger = loggerFactory.CreateLogger("Prebuild");
     try
     {
-        await PrebuildArtifactsService.RunAsync(args[1], args[2], args[3], prebuildLogger);
+        var kdPath = args.Length >= 5 ? args[4] : null;
+        await PrebuildArtifactsService.RunAsync(args[1], args[2], args[3], kdPath, prebuildLogger);
         return 0;
     }
     catch (Exception ex)
