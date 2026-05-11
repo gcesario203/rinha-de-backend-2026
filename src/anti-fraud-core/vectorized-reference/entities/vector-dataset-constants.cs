@@ -7,7 +7,8 @@ public static class VectorDatasetConstants
 
     public const int Dimensions = 14;
 
-    /// <summary>Folhas da ball-tree (build + cache devem usar o mesmo valor).</summary>
+    /// <summary>Folhas da ball-tree (build + cache devem usar o mesmo valor).
+    /// Calibrado: leaf maior (ex. 90) piora o warm-up (mais comparações por folha) sem benefício claro no k=5.</summary>
     public const int BallTreeLeafSize = 60;
 
     public const int HeaderSize = 32;

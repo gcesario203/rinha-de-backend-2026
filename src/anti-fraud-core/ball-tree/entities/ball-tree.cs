@@ -268,7 +268,7 @@ public sealed class BallTreeEntity
 
     [ThreadStatic] private static KnnPriorityQueueEntity? _queueCache;
 
-    /// <summary>Conta quantos dos k vizinhos mais próximos são fraude (dist² na folha; mesmo resultado que Search enumerável).</summary>
+    /// <summary>Conta quantos dos k vizinhos mais próximos são fraude (DFS closer-first, dist² puro).</summary>
     public int CountFraudAmongKNearest(ReadOnlySpan<float> query, int k, out int neighborCount)
     {
         var queue = _queueCache;
@@ -284,6 +284,7 @@ public sealed class BallTreeEntity
 
         var rootDistSq = DistanceSquared(query, _root.Centroid.AsSpan());
         SearchNode(_root, query, queue, rootDistSq);
+
         neighborCount = queue.Count;
         var fraud = 0;
         for (var i = 0; i < queue.Count; i++)
@@ -295,16 +296,16 @@ public sealed class BallTreeEntity
     }
 
     /// <summary>
-    /// Poda em distância ao quadrado pura: o pai já fez <c>DistanceSquared(query, node.Centroid)</c>
-    /// e passa <paramref name="distSqToCenter"/> aqui, evitando sqrt no caminho de poda.
-    /// Quando a fila está cheia, o nó pode ser descartado se
-    /// <c>distSqToCenter &gt; (radius + sqrt(worstSq))²</c>.
+    /// DFS recursiva closer-first: mergulha primeiro no filho mais próximo, esgota sua subárvore
+    /// para apertar <c>WorstDist</c>, depois testa o irmão com o bound já tight. Em 14D essa
+    /// estratégia poda mais cedo do que uma best-first com heap global.
+    /// Poda em dist² puro: <c>distSqToCenter &gt; (radius + sqrt(worstSq))²</c>.
     /// </summary>
     private void SearchNode(BallTreeNodeEntity node, ReadOnlySpan<float> query, KnnPriorityQueueEntity queue, float distSqToCenter)
     {
         if (queue.IsFull)
         {
-            var bound = node.Radius + queue.WorstDist; // worstDist é sqrt(worstSq) cacheado
+            var bound = node.Radius + queue.WorstDist;
             if (distSqToCenter > bound * bound)
                 return;
         }
