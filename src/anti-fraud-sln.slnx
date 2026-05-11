@@ -1,6 +1,0 @@
-<Solution>
-  <Project Path="anti-fraud-api/anti-fraud-api.csproj" />
-  <Project Path="anti-fraud-application/anti-fraud-application.csproj" />
-  <Project Path="anti-fraud-core/anti-fraud-core.csproj" />
-  <Project Path="anti-fraud-infrastructure/anti-fraud-infrastructure.csproj" />
-</Solution>
