@@ -14,6 +14,33 @@ using AntiFraud.Core.NeighborhoodClassifier.ValueObjects;
 using AntiFraud.Core.NeighborhoodClassifier.Services;
 using AntiFraud.Core.VectorizedReference.Entities;
 
+// --------------------------------------------------
+// Modo offline: usado durante `docker build` para materializar references.bin
+// e references.balltree.bin DENTRO da imagem. Evita custo de cold-start.
+//   dotnet anti-fraud-api.dll --prebuild <gzPath> <binPath> <ballTreeBinPath>
+// --------------------------------------------------
+if (args.Length >= 1 && args[0] == "--prebuild")
+{
+    if (args.Length < 4)
+    {
+        Console.Error.WriteLine("Usage: --prebuild <gzPath> <binPath> <ballTreeBinPath>");
+        return 1;
+    }
+
+    using var loggerFactory = LoggerFactory.Create(b => b.AddSimpleConsole(o => o.SingleLine = true));
+    var prebuildLogger = loggerFactory.CreateLogger("Prebuild");
+    try
+    {
+        await PrebuildArtifactsService.RunAsync(args[1], args[2], args[3], prebuildLogger);
+        return 0;
+    }
+    catch (Exception ex)
+    {
+        prebuildLogger.LogCritical(ex, "Prebuild falhou.");
+        return 2;
+    }
+}
+
 // Evita ramp-up tardio do thread pool sob 0→900 rps.
 // Com 0,475 CPU por replica, manter um pool quente reduz a cauda inicial.
 ThreadPool.SetMinThreads(workerThreads: 32, completionPortThreads: 32);
@@ -87,3 +114,5 @@ app.MapFraudScoreEndpoint();
 
 // Run
 app.Run();
+
+return 0;

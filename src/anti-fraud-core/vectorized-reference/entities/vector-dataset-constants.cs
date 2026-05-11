@@ -7,5 +7,8 @@ public static class VectorDatasetConstants
 
     public const int Dimensions = 14;
 
+    /// <summary>Folhas da ball-tree (build + cache devem usar o mesmo valor).</summary>
+    public const int BallTreeLeafSize = 60;
+
     public const int HeaderSize = 32;
 }

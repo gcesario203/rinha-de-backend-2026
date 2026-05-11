@@ -1,11 +1,14 @@
 # Limites alinhados ao config.json da rinha (max_cpu: 1.0, max_memory_mb: 350).
 # Arquitetura obrigatória: HAProxy + pelo menos 2 APIs em round-robin (docs/en/ARCHITECTURE.md).
-# Total: 0.05 + 0.475 + 0.475 = 1.0 CPU ; 32M + 159M + 159M = 350M.
+# Total: 0.05 + 0.475 + 0.475 = 1.0 CPU ; 16M + 167M + 167M = 350M.
+# HAProxy enxuto (8192 conn, sem stats web) cabe em 16M; o restante vai para as APIs
+# acomodarem o mmap de ~168M de vetores + working set do GC sem thrash.
+#
+# Os ficheiros pesados (references.bin + references.balltree.bin) são gerados
+# DURANTE o `docker build` (ver Dockerfile, stage `build`) e ficam imutáveis
+# dentro da imagem em /var/lib/antifraud. Por isso não há mais `volumes:` partilhado.
 
 version: '3.8'
-
-volumes:
-  vector_dataset_bin:
 
 services:
   api1:
@@ -15,18 +18,17 @@ services:
     container_name: anti-fraud-api-1
     networks:
       - antifraud_network
-    volumes:
-      - vector_dataset_bin:/var/lib/antifraud
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - AntiFraud__ClassifierStrategy=BallTree
       - Data__BinaryDatasetPath=/var/lib/antifraud/references.bin
+      - Data__BallTreeCachePath=/var/lib/antifraud/references.balltree.bin
     restart: always
     deploy:
       resources:
         limits:
           cpus: '0.475'
-          memory: 159M
+          memory: 167M
 
   api2:
     build:
@@ -35,18 +37,17 @@ services:
     container_name: anti-fraud-api-2
     networks:
       - antifraud_network
-    volumes:
-      - vector_dataset_bin:/var/lib/antifraud
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - AntiFraud__ClassifierStrategy=BallTree
       - Data__BinaryDatasetPath=/var/lib/antifraud/references.bin
+      - Data__BallTreeCachePath=/var/lib/antifraud/references.balltree.bin
     restart: always
     deploy:
       resources:
         limits:
           cpus: '0.475'
-          memory: 159M
+          memory: 167M
 
   haproxy:
     image: haproxy:2.8
@@ -65,7 +66,7 @@ services:
       resources:
         limits:
           cpus: '0.05'
-          memory: 32M
+          memory: 16M
 
   # ---------------------------------------------------------------------------
   # Cliente de carga (k6). Não sobe com `docker compose up` normal.

@@ -50,9 +50,20 @@ public sealed class TransactionEntity
         destination[8] = Utils.Clamp((float)Customer.TxCount24h / (float)fraudHeuristics.MaxTxCount24h);
         destination[9] = Terminal.IsOnline ? 1.0f : 0.0f;
         destination[10] = Terminal.CardPresent ? 1.0f : 0.0f;
-        destination[11] = Customer.KnownMerchants.Contains(Merchant.Id) ? 0.0f : 1.0f;
+        destination[11] = KnownMerchant(Customer.KnownMerchants, Merchant.Id) ? 0.0f : 1.0f;
         destination[12] = mccAverageAmount;
         destination[13] = Utils.Clamp(Merchant.AvgAmount / fraudHeuristics.MaxMerchantAvgAmount);
+    }
+
+    /// <summary>Evita LINQ/<see cref="List{T}.Contains"/> no hot path; comparação ordinal.</summary>
+    private static bool KnownMerchant(ReadOnlySpan<string> merchants, string merchantId)
+    {
+        for (var i = 0; i < merchants.Length; i++)
+        {
+            if (string.Equals(merchants[i], merchantId, StringComparison.Ordinal))
+                return true;
+        }
+        return false;
     }
 
     private static DateTime ToUtcVectorClock(DateTime dt) =>

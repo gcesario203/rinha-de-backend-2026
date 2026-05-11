@@ -36,6 +36,31 @@ public static class VectorMath14
         => MathF.Sqrt(DistanceSquared(a, b));
 
     /// <summary>
+    /// Produto interno <c>a · b</c> em 14-D. Custa metade de <see cref="DistanceSquared"/> e é usado
+    /// na partição do ball-tree (split por hiperplano: <c>p · delta ≤ threshold</c>).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static float DotProduct(ReadOnlySpan<float> a, ReadOnlySpan<float> b)
+    {
+        ref float ra = ref Unsafe.AsRef(in MemoryMarshal.GetReference(a));
+        ref float rb = ref Unsafe.AsRef(in MemoryMarshal.GetReference(b));
+
+        var p0 = Vector128.LoadUnsafe(ref ra) * Vector128.LoadUnsafe(ref rb);
+        var p1 = Vector128.LoadUnsafe(ref ra, 4) * Vector128.LoadUnsafe(ref rb, 4);
+        var p2 = Vector128.LoadUnsafe(ref ra, 8) * Vector128.LoadUnsafe(ref rb, 8);
+
+        var sumVec = p0 + p1 + p2;
+        var total = Vector128.Sum(sumVec);
+        total += Unsafe.Add(ref ra, 12) * Unsafe.Add(ref rb, 12);
+        total += Unsafe.Add(ref ra, 13) * Unsafe.Add(ref rb, 13);
+        return total;
+    }
+
+    /// <summary>Norma euclidiana ao quadrado (<c>||a||²</c>).</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static float NormSquared(ReadOnlySpan<float> a) => DotProduct(a, a);
+
+    /// <summary>
     /// Software prefetch da linha de cache que contém o vetor (T0 = L1).
     /// No-op se SSE não estiver disponível (raro em x86_64).
     /// </summary>

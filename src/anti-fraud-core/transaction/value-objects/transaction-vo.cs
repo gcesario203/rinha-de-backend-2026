@@ -39,9 +39,10 @@ public record CustomerProfile
 {
     public float AvgAmount { get; }
     public int TxCount24h { get; }
-    public IReadOnlyList<string> KnownMerchants { get; }
+    /// <summary>Referência direta ao array do DTO (sem <c>ToList()</c>).</summary>
+    public string[] KnownMerchants { get; }
 
-    public CustomerProfile(float avgAmount, int txCount24h, IEnumerable<string> knownMerchants)
+    public CustomerProfile(float avgAmount, int txCount24h, string[]? knownMerchants)
     {
         if (avgAmount < 0)
             throw new ArgumentException("Average amount cannot be negative.");
@@ -50,8 +51,7 @@ public record CustomerProfile
 
         AvgAmount = avgAmount;
         TxCount24h = txCount24h;
-        KnownMerchants = knownMerchants?.ToList().AsReadOnly()
-            ?? throw new ArgumentNullException(nameof(knownMerchants));
+        KnownMerchants = knownMerchants ?? [];
     }
 }
 

@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using AntiFraud.Core.FraudEngine.DataTransferObjects;
 using AntiFraud.Core.Transaction.DataTransferObjects;
@@ -11,7 +10,7 @@ namespace AntiFraud.API.Services;
 [JsonSerializable(typeof(MerchantInfo))]
 [JsonSerializable(typeof(TerminalInfo))]
 [JsonSerializable(typeof(LastTransactionInfo))]
-[JsonSerializable(typeof(List<string>))]
+[JsonSerializable(typeof(string[]))]
 [JsonSerializable(typeof(FraudAnalysisResult))]
 [JsonSourceGenerationOptions(
     GenerationMode = JsonSourceGenerationMode.Default,

@@ -20,7 +20,8 @@ public record TransactionInfo(
 public record CustomerInfo(
     [property: JsonPropertyName("avg_amount")] float AvgAmount,
     [property: JsonPropertyName("tx_count_24h")] int TxCount24h,
-    [property: JsonPropertyName("known_merchants")] List<string> KnownMerchants
+    /// <summary>Array evita <see cref="List{T}"/> no deserialize (menos alocação por request).</summary>
+    [property: JsonPropertyName("known_merchants")] string[]? KnownMerchants = null
 );
 
 public record MerchantInfo(

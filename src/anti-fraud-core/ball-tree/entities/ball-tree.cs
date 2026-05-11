@@ -2,120 +2,265 @@ namespace AntiFraud.Core.BallTree.Entities;
 
 using AntiFraud.Core.NeighborhoodClassifier.Entities;
 using AntiFraud.Core.Shared.Utils;
+using AntiFraud.Core.VectorizedReference.Entities;
 
 public sealed class BallTreeEntity
 {
     private const int Dimensions = 14;
+    /// <summary>Frequência (em nós internos construídos) com que <see cref="ProgressCallback"/> é chamado.</summary>
+    private const int ProgressEveryNodes = 500;
 
     private readonly IBallTreeDataSource _dataSource;
     private readonly int _leafSize;
+    /// <summary>Só preenchido durante <see cref="Build"/> in-place; <see langword="null"/> quando carregado do cache.</summary>
+    private readonly int[]? _indexBuffer;
     private readonly BallTreeNodeEntity _root;
 
-    public BallTreeEntity(IBallTreeDataSource dataSource, int leafSize = 30)
+    /// <summary>Callback opcional (totalNodos, totalLeaves) para acompanhar progresso do build.</summary>
+    public Action<int, int>? ProgressCallback { get; set; }
+
+    private int _nodesBuilt;
+    private int _leavesBuilt;
+
+    /// <summary>Callback opcional chamado UMA vez por pass em cada nível da recursão (apenas os
+    /// primeiros <c>depth ≤ 3</c>). Permite ver onde o tempo de build vai sem poluir o log.</summary>
+    public Action<int, string, long>? PhaseCallback { get; set; }
+
+    public BallTreeEntity(IBallTreeDataSource dataSource, int leafSize = VectorDatasetConstants.BallTreeLeafSize)
     {
         _dataSource = dataSource;
         _leafSize = leafSize;
 
-        var allIndices = Enumerable.Range(0, dataSource.Count).ToArray();
-        _root = Build(allIndices);
+        var n = dataSource.Count;
+        _indexBuffer = new int[n];
+        for (var i = 0; i < n; i++)
+            _indexBuffer[i] = i;
+
+        _root = Build(0, n, depth: 0);
+    }
+
+    /// <summary>Árvore restaurada do disco — sem buffer de partição.</summary>
+    private BallTreeEntity(IBallTreeDataSource dataSource, BallTreeNodeEntity root)
+    {
+        _dataSource = dataSource;
+        _leafSize = VectorDatasetConstants.BallTreeLeafSize;
+        _indexBuffer = null;
+        _root = root;
+    }
+
+    /// <summary>Carrega árvore pré-serializada (header + preorder). Valida leafSize e tamanho do <c>references.bin</c>.</summary>
+    public static BallTreeEntity LoadFromCache(ReadOnlySpan<byte> fileBytes, IBallTreeDataSource dataSource, int expectedLeafSize, long referencesBinLength)
+    {
+        if (!BallTreeBinary.TryValidateHeader(fileBytes.Slice(0, BallTreeBinary.HeaderSize), expectedLeafSize, referencesBinLength, out _))
+            throw new InvalidDataException("Ball-tree cache: header inválido ou incompatível com o dataset.");
+
+        var offset = BallTreeBinary.HeaderSize;
+        var root = BallTreeSerialization.ReadTree(fileBytes, ref offset);
+        if (offset != fileBytes.Length)
+            throw new InvalidDataException($"Ball-tree cache: esperado EOF em {offset}, ficheiro tem {fileBytes.Length} bytes.");
+
+        return new BallTreeEntity(dataSource, root);
+    }
+
+    /// <summary>Persiste header + árvore para escrita atómica no disco.</summary>
+    public void WriteFullCache(Stream stream, int leafSize, long referencesBinLength)
+    {
+        Span<byte> header = stackalloc byte[BallTreeBinary.HeaderSize];
+        BallTreeBinary.WriteHeader(header, leafSize, referencesBinLength);
+        stream.Write(header);
+        BallTreeSerialization.WriteTree(stream, _root);
     }
 
     #region Build
 
-    private BallTreeNodeEntity Build(int[] indices)
+    private BallTreeNodeEntity Build(int start, int length, int depth)
     {
         var node = new BallTreeNodeEntity();
 
-        ComputeCentroid(indices, node.Centroid);
-        node.Radius = ComputeRadius(indices, node.Centroid);
-
-        if (indices.Length <= _leafSize)
+        if (length <= _leafSize)
         {
-            node.PointIndices = indices;
+            FillCentroidAndRadius(start, length, node);
+
+            var leaf = new int[length];
+            Array.Copy(_indexBuffer!, start, leaf, 0, length);
+            node.PointIndices = leaf;
+
+            _leavesBuilt++;
             return node;
         }
 
-        var (left, right) = Split(indices);
+        var traceTop = depth <= 3 && PhaseCallback is not null;
+        var sw = traceTop ? System.Diagnostics.Stopwatch.StartNew() : null;
 
-        node.Left = Build(left);
-        node.Right = Build(right);
+        // Pass 1: centróide + pivot A (farthest de _indexBuffer[start]).
+        var pivotA = ComputeCentroidAndPickPivotA(start, length, node.Centroid);
+        if (traceTop) PhaseCallback!.Invoke(depth, $"pass1 centroid+pivotA len={length}", sw!.ElapsedMilliseconds);
 
+        // Pass 2: raio (em torno do centróide) + pivot B (farthest de pivotA).
+        if (traceTop) sw!.Restart();
+        var va = _dataSource.GetVectorSpan(pivotA);
+        var (radius, pivotB) = ComputeRadiusAndPickPivotB(start, length, node.Centroid, va);
+        node.Radius = radius;
+        if (traceTop) PhaseCallback!.Invoke(depth, $"pass2 radius+pivotB len={length}", sw!.ElapsedMilliseconds);
+
+        // Pass 3: partição via hiperplano (1 produto interno por ponto, sem dist²).
+        if (traceTop) sw!.Restart();
+        var vb = _dataSource.GetVectorSpan(pivotB);
+        var leftLen = PartitionByHyperplane(start, length, va, vb);
+        if (traceTop) PhaseCallback!.Invoke(depth, $"pass3 partition leftLen={leftLen}", sw!.ElapsedMilliseconds);
+
+        if (leftLen == 0)
+        {
+            Swap(start, start + length - 1);
+            leftLen = 1;
+        }
+        else if (leftLen == length)
+        {
+            Swap(start + length - 2, start + length - 1);
+            leftLen = length - 1;
+        }
+
+        _nodesBuilt++;
+        if (_nodesBuilt % ProgressEveryNodes == 0)
+            ProgressCallback?.Invoke(_nodesBuilt, _leavesBuilt);
+
+        node.Left = Build(start, leftLen, depth + 1);
+        node.Right = Build(start + leftLen, length - leftLen, depth + 1);
         return node;
     }
 
-    private void ComputeCentroid(int[] indices, float[] centroid)
+    /// <summary>Folha: centróide e raio em duas passadas curtas (length ≤ leafSize).</summary>
+    private void FillCentroidAndRadius(int start, int length, BallTreeNodeEntity node)
+    {
+        Array.Clear(node.Centroid, 0, Dimensions);
+
+        for (var t = 0; t < length; t++)
+        {
+            var span = _dataSource.GetVectorSpan(_indexBuffer![start + t]);
+            for (var d = 0; d < Dimensions; d++)
+                node.Centroid[d] += span[d];
+        }
+
+        var inv = 1f / length;
+        for (var d = 0; d < Dimensions; d++)
+            node.Centroid[d] *= inv;
+
+        var maxSq = 0f;
+        for (var t = 0; t < length; t++)
+        {
+            var dsq = DistanceSquared(_dataSource.GetVectorSpan(_indexBuffer![start + t]), node.Centroid);
+            if (dsq > maxSq) maxSq = dsq;
+        }
+        node.Radius = MathF.Sqrt(maxSq);
+    }
+
+    /// <summary>
+    /// Passada 1 (internos): soma o centróide e, no mesmo loop, encontra o índice mais distante
+    /// do primeiro ponto da fatia (heurística de pivot A do diâmetro).
+    /// </summary>
+    private int ComputeCentroidAndPickPivotA(int start, int length, float[] centroid)
     {
         Array.Clear(centroid, 0, Dimensions);
 
-        foreach (var idx in indices)
+        var refSpan = _dataSource.GetVectorSpan(_indexBuffer![start]);
+        var pivotA = _indexBuffer![start];
+        var maxSq = 0f;
+
+        for (var t = 0; t < length; t++)
         {
+            var idx = _indexBuffer![start + t];
             var span = _dataSource.GetVectorSpan(idx);
-            for (int i = 0; i < Dimensions; i++)
-                centroid[i] += span[i];
-        }
 
-        for (int i = 0; i < Dimensions; i++)
-            centroid[i] /= indices.Length;
-    }
+            for (var d = 0; d < Dimensions; d++)
+                centroid[d] += span[d];
 
-    private float ComputeRadius(int[] indices, float[] centroid)
-    {
-        float max = 0f;
-
-        foreach (var idx in indices)
-        {
-            var dist = Distance(_dataSource.GetVectorSpan(idx), centroid);
-            if (dist > max) max = dist;
-        }
-
-        return max;
-    }
-
-    private (int[], int[]) Split(int[] indices)
-    {
-        int pivotA = FindFarthest(indices, _dataSource.GetVectorSpan(indices[0]));
-        int pivotB = FindFarthest(indices, _dataSource.GetVectorSpan(pivotA));
-
-        var left = new List<int>();
-        var right = new List<int>();
-
-        var a = _dataSource.GetVectorSpan(pivotA);
-        var b = _dataSource.GetVectorSpan(pivotB);
-
-        foreach (var idx in indices)
-        {
-            var p = _dataSource.GetVectorSpan(idx);
-
-            var da = Distance(p, a);
-            var db = Distance(p, b);
-
-            if (da <= db) left.Add(idx);
-            else right.Add(idx);
-        }
-
-        if (left.Count == 0) { left.Add(right[^1]); right.RemoveAt(right.Count - 1); }
-        if (right.Count == 0) { right.Add(left[^1]); left.RemoveAt(left.Count - 1); }
-
-        return (left.ToArray(), right.ToArray());
-    }
-
-    private int FindFarthest(int[] indices, ReadOnlySpan<float> reference)
-    {
-        int best = indices[0];
-        float max = 0f;
-
-        foreach (var idx in indices)
-        {
-            var dist = Distance(_dataSource.GetVectorSpan(idx), reference);
-            if (dist > max)
+            var dsq = DistanceSquared(span, refSpan);
+            if (dsq > maxSq)
             {
-                max = dist;
-                best = idx;
+                maxSq = dsq;
+                pivotA = idx;
             }
         }
 
-        return best;
+        var inv = 1f / length;
+        for (var d = 0; d < Dimensions; d++)
+            centroid[d] *= inv;
+
+        return pivotA;
     }
+
+    /// <summary>
+    /// Passada 2 (internos): calcula raio em torno do centróide e, no mesmo loop, escolhe pivot B
+    /// (farthest de pivot A). Cada ponto sofre apenas <b>uma</b> leitura de mmap.
+    /// </summary>
+    private (float Radius, int PivotB) ComputeRadiusAndPickPivotB(
+        int start, int length, float[] centroid, ReadOnlySpan<float> va)
+    {
+        var centSpan = centroid.AsSpan();
+        var maxRadiusSq = 0f;
+        var maxFromASq = 0f;
+        var pivotB = _indexBuffer![start];
+
+        for (var t = 0; t < length; t++)
+        {
+            var idx = _indexBuffer![start + t];
+            var span = _dataSource.GetVectorSpan(idx);
+
+            var dsqCentroid = DistanceSquared(span, centSpan);
+            if (dsqCentroid > maxRadiusSq) maxRadiusSq = dsqCentroid;
+
+            var dsqA = DistanceSquared(span, va);
+            if (dsqA > maxFromASq)
+            {
+                maxFromASq = dsqA;
+                pivotB = idx;
+            }
+        }
+
+        return (MathF.Sqrt(maxRadiusSq), pivotB);
+    }
+
+    /// <summary>
+    /// Partição in-place por hiperplano: ponto vai à esquerda se <c>p · delta ≤ threshold</c>,
+    /// equivalente a <c>d²(p, a) ≤ d²(p, b)</c> mas com apenas <b>um</b> produto interno por ponto.
+    /// </summary>
+    private int PartitionByHyperplane(int start, int length, ReadOnlySpan<float> va, ReadOnlySpan<float> vb)
+    {
+        Span<float> delta = stackalloc float[Dimensions];
+        for (var d = 0; d < Dimensions; d++)
+            delta[d] = vb[d] - va[d];
+
+        var threshold = (VectorMath14.NormSquared(vb) - VectorMath14.NormSquared(va)) * 0.5f;
+
+        var i = start;
+        var j = start + length - 1;
+        while (i <= j)
+        {
+            while (i <= j)
+            {
+                var p = _dataSource.GetVectorSpan(_indexBuffer![i]);
+                if (VectorMath14.DotProduct(p, delta) <= threshold) i++;
+                else break;
+            }
+            while (i <= j)
+            {
+                var p = _dataSource.GetVectorSpan(_indexBuffer![j]);
+                if (VectorMath14.DotProduct(p, delta) > threshold) j--;
+                else break;
+            }
+            if (i < j)
+            {
+                Swap(i, j);
+                i++;
+                j--;
+            }
+        }
+
+        return i - start;
+    }
+
+    private void Swap(int i, int j) =>
+        (_indexBuffer![i], _indexBuffer![j]) = (_indexBuffer![j], _indexBuffer![i]);
 
     #endregion
 
@@ -203,7 +348,4 @@ public sealed class BallTreeEntity
 
     private static float DistanceSquared(ReadOnlySpan<float> a, ReadOnlySpan<float> b)
         => VectorMath14.DistanceSquared(a, b);
-
-    private static float Distance(ReadOnlySpan<float> a, ReadOnlySpan<float> b)
-        => VectorMath14.Distance(a, b);
 }
