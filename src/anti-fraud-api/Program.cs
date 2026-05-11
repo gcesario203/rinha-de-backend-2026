@@ -7,6 +7,7 @@ using AntiFraud.Infrastructure.Extensions;
 using AntiFraud.API.Endpoints;
 using AntiFraud.API.HostedServices;
 using AntiFraud.API.Services;
+using AntiFraud.Core.Serialization;
 using AntiFraud.Application.Shared.ValueObjects;
 using AntiFraud.Core.NeighborhoodClassifier;
 using AntiFraud.Application.FraudScore.Services;
@@ -63,7 +64,7 @@ builder.WebHost.ConfigureKestrel(o =>
 
 // Source-generated JSON serializer (sem reflection no hot path)
 builder.Services.Configure<JsonOptions>(o =>
-    o.SerializerOptions.TypeInfoResolverChain.Insert(0, FraudJsonSerializerContext.Default));
+    o.SerializerOptions.TypeInfoResolverChain.Insert(0, AntiFraudJsonSerializerContext.Default));
 
 // --------------------------------------------------
 // Configuração da strategy sem depender de ConfigurationBinder

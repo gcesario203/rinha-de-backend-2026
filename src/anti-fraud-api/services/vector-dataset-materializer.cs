@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.IO.Compression;
 using System.Text.Json;
+using AntiFraud.Core.Serialization;
 using AntiFraud.Core.VectorizedReference.Entities;
 using AntiFraud.Core.VectorizedReference.Models;
 
@@ -8,11 +9,6 @@ namespace AntiFraud.API.Services;
 
 public static class VectorDatasetMaterializer
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true
-    };
-
     /// <summary>
     /// Ensures <paramref name="binPath"/> exists and matches the expected layout.
     /// If not, streams from <paramref name="gzPath"/> and writes the binary file atomically (temp + move).
@@ -99,7 +95,9 @@ public static class VectorDatasetMaterializer
             var index = 0;
 
             await foreach (var record in JsonSerializer
-                               .DeserializeAsyncEnumerable<VectorizedReferenceFileModel>(gzipStream, JsonOptions,
+                               .DeserializeAsyncEnumerable<VectorizedReferenceFileModel>(
+                                   gzipStream,
+                                   AntiFraudJsonSerializerContext.Default.VectorizedReferenceFileModel,
                                    cancellationToken).ConfigureAwait(false))
             {
                 cancellationToken.ThrowIfCancellationRequested();

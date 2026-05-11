@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 
+using AntiFraud.Core.Serialization;
 using AntiFraud.Core.Shared.ValueObjects;
 using AntiFraud.Core.MCC.Repository;
 
@@ -13,8 +14,6 @@ namespace AntiFraud.Infrastructure.Extensions;
 
 public static class InfrastructureServiceCollectionExtensions
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
-
     public static IServiceCollection AddAntiFraudInfrastructure(this IServiceCollection services)
     {
         services.AddJsonResources();
@@ -28,13 +27,13 @@ public static class InfrastructureServiceCollectionExtensions
         // Heurísticas de Normalização
         var heuristicsPath = Path.Combine(AppContext.BaseDirectory, "shared", "resources", "normalization.json");
         var heuristicsJson = File.ReadAllText(heuristicsPath);
-        var heuristics = JsonSerializer.Deserialize<FraudHeuristics>(heuristicsJson, JsonOptions);
+        var heuristics = JsonSerializer.Deserialize(heuristicsJson, AntiFraudJsonSerializerContext.Default.FraudHeuristics);
         services.AddSingleton(heuristics!);
 
         // Riscos de MCC
         var mccPath = Path.Combine(AppContext.BaseDirectory, "shared", "resources", "mcc_risk.json");
         var mccJson = File.ReadAllText(mccPath);
-        var mccRisk = JsonSerializer.Deserialize<Dictionary<string, float>>(mccJson, JsonOptions);
+        var mccRisk = JsonSerializer.Deserialize(mccJson, AntiFraudJsonSerializerContext.Default.MccRiskByCode);
         services.AddSingleton(mccRisk!);
 
         services.AddSingleton<IMCCRepository, MCCInMemoryRiskRepository>();

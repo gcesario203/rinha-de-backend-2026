@@ -17,6 +17,7 @@
     <TieredCompilation>true</TieredCompilation>
     <InvariantGlobalization>true</InvariantGlobalization>
     <PublishReadyToRun>true</PublishReadyToRun>
+    <!-- AOT testado e revertido: perdeu ~530 pts vs JIT+TieredPGO em workload CPU-heavy (k-NN é 70% float math). -->
   </PropertyGroup>
 
 </Project>
