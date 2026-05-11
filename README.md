@@ -64,6 +64,7 @@ Esta pasta contém uma API em **.NET 10 (C#)** que classifica transações com *
 - `src/anti-fraud-application` — serviços de aplicação (classificador, transação, fraud engine).
 - `src/anti-fraud-infrastructure` — recursos JSON (heurísticas, MCC), DI.
 - `src/docker-compose.yml` — orquestração local com limites alinhados ao `config.json`.
+- `src/Dockerfile` — imagem da API (contexto de build = raiz do repo).
 - `src/haproxy/haproxy.cfg` — configuração do balanceador.
 
 ### Como correr localmente
@@ -73,6 +74,14 @@ Na raiz do repositório (contexto de build `..` relativamente a `src/docker-comp
 ```bash
 docker compose -f src/docker-compose.yml up --build
 ```
+
+**Imagem para registry (build manual):** o `Dockerfile` está em **`src/Dockerfile`**; o contexto continua a ser a **raiz do repositório** (para incluir `resources/`). A partir da raiz:
+
+```bash
+docker build -f src/Dockerfile -t <registry>/<nome>:<tag> .
+```
+
+Usar como contexto apenas a pasta `src/` faz falhar — falta `resources/` e os `COPY` com prefixo `src/...` não batem com o layout esperado.
 
 Health: `http://localhost:9999/ready`  
 Inferência: `POST http://localhost:9999/fraud-score` (corpo conforme [docs/br/API.md](./docs/br/API.md)).

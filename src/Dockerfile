@@ -1,5 +1,12 @@
 # =============================================================================
-# STAGE 1: Build + publish + prebuild dos artefactos (references.bin/.balltree.bin)
+# Ficheiro único: vive em src/; o contexto do build continua a ser a RAIZ do repo
+# (tens de incluir src/, resources/, etc.):
+#
+#   docker build -f src/Dockerfile -t <imagem> .
+#
+# Isto FALHA se o contexto for só "src" — falta resources/ e a árvore COPY src/... não bate.
+# =============================================================================
+# STAGE 1: Build + publish + prebuild dos artefactos (references.bin + caches de índice)
 # =============================================================================
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
@@ -17,10 +24,9 @@ WORKDIR "/src/src/anti-fraud-api"
 RUN dotnet publish "anti-fraud-api.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
 # -----------------------------------------------------------------------------
-# Prebuild dos artefactos PESADOS (references.bin + references.balltree.bin)
+# Prebuild dos artefactos PESADOS (references.bin + ball tree + KD-tree)
 # Executa o próprio binário publicado no modo --prebuild.
 # Saída fica em /app/data e é copiada para a imagem final em /var/lib/antifraud.
-# Esta camada só re-executa se references.json.gz ou o publish output mudarem.
 # -----------------------------------------------------------------------------
 RUN mkdir -p /app/data \
  && dotnet /app/publish/anti-fraud-api.dll --prebuild \
